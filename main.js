@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 
@@ -19,14 +18,14 @@ document.body.appendChild(VRButton.createButton(renderer));
 const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
 scene.add(light);
 
-// Escenario (cuarto)
+// Escenario
 const room = new THREE.Mesh(
     new THREE.BoxGeometry(10, 5, 10),
     new THREE.MeshBasicMaterial({ color: 0x555555, wireframe: true })
 );
 scene.add(room);
 
-// Geometrías distintas
+// Geometrías
 const geometries = [
     new THREE.BoxGeometry(), new THREE.SphereGeometry(), new THREE.ConeGeometry(),
     new THREE.CylinderGeometry(), new THREE.TorusGeometry(), new THREE.TetrahedronGeometry(),
@@ -37,7 +36,6 @@ const geometries = [
 ];
 
 const objects = [];
-
 geometries.forEach((geom) => {
     const mat = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
     const mesh = new THREE.Mesh(geom, mat);
@@ -49,30 +47,40 @@ geometries.forEach((geom) => {
     });
 });
 
-// Manos y agarre
+// Manos
 const handFactory = new XRHandModelFactory();
-const grabbedObjects = [null, null]; // uno por mano
+const grabbedObjects = [null, null];
 
-function isGrabbing(hand) {
+const hands = [];
+
+for (let i = 0; i < 2; i++) {
+    const hand = renderer.xr.getHand(i);
+    const handModel = handFactory.createHandModel(hand, "boxes"); // boxes es más útil para visualizar articulaciones
+    hand.add(handModel);
+    scene.add(hand);
+    hands.push(hand);
+}
+
+// Función para detectar gesto de pinza
+function isPinching(hand) {
     const indexTip = hand.joints['index-finger-tip'];
     const thumbTip = hand.joints['thumb-tip'];
+
     if (indexTip && thumbTip) {
         const distance = indexTip.position.distanceTo(thumbTip.position);
-        return distance < 0.025; // margen para detectar "pinza"
+        return distance < 0.025;
     }
     return false;
 }
 
+// Función para actualizar interacción por mano
 function updateHandInteraction(hand, handIndex) {
-    if (!hand.joints) return;
-
     const indexTip = hand.joints['index-finger-tip'];
     if (!indexTip) return;
 
-    const grabbing = isGrabbing(hand);
+    const pinching = isPinching(hand);
 
-    // Si está agarrando y no tiene objeto, intentar agarrar
-    if (grabbing && !grabbedObjects[handIndex]) {
+    if (pinching && !grabbedObjects[handIndex]) {
         let closest = null;
         let minDist = Infinity;
         objects.forEach(obj => {
@@ -89,25 +97,16 @@ function updateHandInteraction(hand, handIndex) {
         }
     }
 
-    // Si está agarrando, mover el objeto con la mano
     if (grabbedObjects[handIndex]) {
-        if (grabbing) {
+        if (pinching) {
             grabbedObjects[handIndex].position.copy(indexTip.position).add(grabbedObjects[handIndex].userData.offset);
         } else {
-            grabbedObjects[handIndex] = null; // soltar objeto
+            grabbedObjects[handIndex] = null; // soltar
         }
     }
 }
 
-// Crear manos
-for (let i = 0; i < 2; i++) {
-    const hand = renderer.xr.getHand(i);
-    const handModel = handFactory.createHandModel(hand, "mesh");
-    hand.add(handModel);
-    scene.add(hand);
-}
-
-// Animación
+// Loop de animación
 renderer.setAnimationLoop(() => {
     objects.forEach(obj => {
         obj.mesh.rotation.x += 0.01 * obj.rotSpeed.x;
@@ -115,10 +114,8 @@ renderer.setAnimationLoop(() => {
         obj.mesh.rotation.z += 0.01 * obj.rotSpeed.z;
     });
 
-    const hand0 = renderer.xr.getHand(0);
-    const hand1 = renderer.xr.getHand(1);
-    updateHandInteraction(hand0, 0);
-    updateHandInteraction(hand1, 1);
+    updateHandInteraction(hands[0], 0);
+    updateHandInteraction(hands[1], 1);
 
     renderer.render(scene, camera);
 });
