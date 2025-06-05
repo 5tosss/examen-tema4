@@ -103,10 +103,12 @@ function updateHandInteraction(hand, handIndex) {
 
 for (let i = 0; i < 2; i++) {
     const hand = renderer.xr.getHand(i);
-    const handModel = handFactory.createHandModel(hand, 'mesh');
-    hand.add(handModel);
     scene.add(hand);
+
+    const handModel = handFactory.createHandModel(hand, 'boxes'); // usa 'boxes' o 'mesh'
+    hand.add(handModel);
 }
+
 
 // Animación
 renderer.setAnimationLoop(() => {
